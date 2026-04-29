@@ -30,3 +30,7 @@ you. Bob is here to judge you.
 ## Status
 Bob is disappointed in his current state of development. 
 He expected more from you.
+
+## Contributing
+Don't. Bob doesn't want your help. 
+Nobody asked you.
