@@ -77,6 +77,8 @@
 			const chatBox = document.getElementById('chat-box');
 			const status = document.getElementById('status');
 			const message = input.value.trim();
+			const now = new Date();
+			const timeContext = `Current datetime: ${now.toLocaleString()} timezone: ${Intl.DateTimeFormat().resolvedOptions().timeZone}`;
 			if (!message) return;
             const displayMessage = message.length > 280
                  ? message.substring(0, 280) + '... [truncated]'
@@ -88,6 +90,7 @@
 			if (message.length > 280) {
 				messageToSend = `The user just dumped ${message.length} characters at me in a single message instead of having an actual conversation.`;
 			}
+			messageToSend = `[SYSTEM CONTEXT - not from user:${timeContext}] ${messageToSend}`;
 
 			input.value = '';
 			status.textContent = 'Bob is formulating his disappointment...';
