@@ -4,13 +4,24 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_community.chat_message_histories import ChatMessageHistory  # stores conversation
 import uuid  # generates unique session IDs
+from dotenv import load_dotenv
+import os
 
-OLLAMA_HOST = "192.168.1.122"
-OLLAMA_PORT = "11434"
+load_dotenv()
 
+OLLAMA_HOST = os.getenv("OLLAMA_HOST")
+OLLAMA_PORT = os.getenv("OLLAMA_PORT")
+BOB_MODEL = os.getenv("BOB_MODEL")
+FLASK_SECRET_KEY = os.getenv("FLASK_SECRET_KEY")
+
+# Blow up early if anything is missing
+required_vars = ["OLLAMA_HOST", "OLLAMA_PORT", "BOB_MODEL", "FLASK_SECRET_KEY"]
+missing = [var for var in required_vars if not os.getenv(var)]
+if missing:
+        raise EnvironmentError(f"Missing required environment variables: {missing}")
 
 app = Flask(__name__, static_folder='static')
-app.secret_key = 'bob_is_disappointed_in_your_security'
+app.secret_key = FLASK_SECRET_KEY
 
 llm = ChatOllama(
     model="bob",
