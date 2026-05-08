@@ -65,7 +65,7 @@
     </div>
 	<div class="input-wrapper">
         <input type="text" id="user-input" 
-               placeholder="Say something. Bob will judge you." 
+               placeholder="Say something. Bob probably doesn't care." 
                onkeypress="if(event.key==='Enter')sendMessage()"/>
         <button onclick="sendMessage()">SEND</button>
     </div>
@@ -78,19 +78,34 @@
 			const status = document.getElementById('status');
 			const message = input.value.trim();
 			const now = new Date();
-			const timeContext = `Current datetime: ${now.toLocaleString()} timezone: ${Intl.DateTimeFormat().resolvedOptions().timeZone}`;
+			const timeOptions = {
+			    hour: 'numeric',
+			    minute: '2-digit',
+			    hour12: true,
+			    timeZoneName: 'short'
+			};
+			const dateOptions = {
+			    weekday: 'long',
+			    year: 'numeric',
+			    month: 'long',
+			    day: 'numeric'
+			};
+			const timeContext = `Current time is ${now.toLocaleTimeString('en-US', timeOptions)} on ${now.toLocaleDateString('en-US', dateOptions)}`;
 			if (!message) return;
-            const displayMessage = message.length > 280
-                 ? message.substring(0, 280) + '... [truncated]'
-                 : message;
+			const MAX_INPUT_LENGTH = 512;
+
+			const displayMessage = message.length > MAX_INPUT_LENGTH
+			    ? message.substring(0, MAX_INPUT_LENGTH) + '... [truncated]'
+			    : message;
 
 			chatBox.innerHTML += `<div class="user-msg">YOU: ${displayMessage}</div>`;
+			chatBox.scrollTop = chatBox.scrollHeight;
 
 			let messageToSend = message;
-			if (message.length > 280) {
-				messageToSend = `The user just dumped ${message.length} characters at me in a single message instead of having an actual conversation.`;
+			if (message.length > MAX_INPUT_LENGTH) {
+			    messageToSend = `The user just dumped ${message.length} characters at me in a single message instead of having an actual conversation.`;
 			}
-			messageToSend = `[SYSTEM CONTEXT - not from user:${timeContext}] ${messageToSend}`;
+			messageToSend = `{time:${timeContext}} ${messageToSend}`;
 
 			input.value = '';
 			status.textContent = 'Bob is formulating his disappointment...';

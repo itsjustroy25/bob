@@ -60,3 +60,47 @@ cloudflared tunnel run --url http://localhost:5000 bob &
 pkill cloudflared
 cloudflared tunnel run --url http://localhost:5000 bob &
 ```
+
+## config.yml Setup (Required for Service Install)
+
+Create ~/.cloudflared/config.yml:
+
+``yaml
+tunnel: YOUR-TUNNEL-UUID
+credentials-file: /home/USERNAME/.cloudflared/YOUR-TUNNEL-UUID.json
+ingress:
+  - hostname: itsjustbob.chat
+    service: http://localhost:80
+  - service: http_status:404
+``
+
+Note: tunnel field requires the UUID not the tunnel name.
+
+## Running cloudflared as a Service (Survives Reboots)
+
+Install as SysV service:
+
+``bash
+sudo cloudflared --config /home/USERNAME/.cloudflared/config.yml service install
+``
+
+### Managing the service
+``bash
+# Start
+sudo service cloudflared start
+
+# Stop
+sudo service cloudflared stop
+
+# Status
+sudo service cloudflared status
+
+# Kill manual instance if running
+sudo pkill cloudflared
+``
+
+## Notes
+- Service survives reboots AND SSH disconnects
+- No need for nohup or & anymore
+- If already started, pkill the manual instance first
+- Uses SysV on WSL (not systemd)`
