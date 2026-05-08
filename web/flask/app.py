@@ -86,8 +86,12 @@ store = {}
 
 def get_session_history(session_id: str):
     if session_id not in store:
-        store[session_id] = ChatMessageHistory()
-    return store[session_id]
+         store[session_id] = ChatMessageHistory()
+    # Only keep last 10 exchanges
+    history = store[session_id]
+    if len(history.messages) > 20:  # 10 exchanges = 20 messages
+        history.messages = history.messages[-20:]
+    return history
 
 chain = RunnableWithMessageHistory(
     prompt | llm,
@@ -117,6 +121,20 @@ def chat():
             config={"configurable": {"session_id": session['session_id']}}
     )
     return jsonify({"response": response.content})
+
+@app.route('/debug/session', methods=['GET'])
+def debug_session():
+    if 'session_id' not in session:
+        return jsonify({"error": "no session"})
+    history = get_session_history(session['session_id'])
+    messages = history.messages
+    total_chars = sum(len(m.content) for m in messages)
+    return jsonify({
+          "message_count": len(messages),
+          "total_chars": total_chars,
+          "estimated_tokens": total_chars // 4,
+          "messages": [{"role": type(m).__name__, "chars": len(m.content)} for m in messages]
+    })
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
