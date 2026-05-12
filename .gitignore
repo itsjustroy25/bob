@@ -4,3 +4,5 @@ __pycache__/
 esptoolenv/
 *.pyc
 .env
+nohup.out
+watchdog.log
