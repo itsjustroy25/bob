@@ -12,7 +12,7 @@
             max-width: 800px;
             margin: 0 auto;
             padding: 20px;
-			text-align: center;
+            text-align: center;
         }
         h1 { color: #cc0000; }
         #chat-box {
@@ -22,12 +22,20 @@
             padding: 10px;
             margin: 20px 0;
             background: #050505;
-			width: 100%;
-			box-sizing: border-box;
-			text-align: left;
+            width: 100%;
+            box-sizing: border-box;
+            text-align: left;
         }
         .user-msg { color: #888; margin: 10px 0; }
         .bob-msg { color: #cc0000; margin: 10px 0; }
+
+        /* Input area — position:relative so overlay can anchor to it */
+        .input-wrapper {
+            text-align: left;
+            width: 100%;
+            box-sizing: border-box;
+            position: relative;
+        }
         input[type="text"] {
             width: 85%;
             background: #050505;
@@ -35,13 +43,9 @@
             border: 1px solid #cc0000;
             padding: 10px;
             font-family: monospace;
-			text-align: left;
+            text-align: left;
+            box-sizing: border-box;
         }
-		.input-wrapper {
-			text-align: left;
-			width: 100%;
-			box-sizing: border-box;
-		}
         button {
             background: #cc0000;
             color: #0a0a0a;
@@ -52,190 +56,468 @@
             font-weight: bold;
         }
         button:hover { background: #ff0000; }
+        button:disabled {
+            background: #440000;
+            color: #220000;
+            cursor: not-allowed;
+        }
+        input[type="text"]:disabled {
+            color: #330000;
+            border-color: #330000;
+        }
         #status { color: #444; font-size: 0.8em; }
+
+        /* Thinking overlay — sits on top of the input-wrapper */
+        #thinking-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(5, 5, 5, 0.92);
+            border: 1px solid #330000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+            box-sizing: border-box;
+            min-height: 44px;
+        }
+        #thinking-overlay.visible {
+            opacity: 1;
+            pointer-events: all;
+        }
+        #overlay-canvas {
+            display: block;
+        }
+
+        /* Corner face — fixed top-right */
+        #bob-face {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            border: 1px solid #330000;
+            background: #030303;
+            box-shadow: 0 0 20px rgba(200, 0, 0, 0.2);
+            display: block;
+            transition: opacity 0.4s ease;
+        }
     </style>
 </head>
 <body>
     <h1>BOB</h1>
     <p>Bob is disappointed in you. Bob is disappointed in everything.<br>
     Bob is especially disappointed in himself for caring.</p>
-	<div id="chat-box"></div>
-	<div class="input-wrapper">
-        <input type="text" id="user-input" 
+
+    <div id="chat-box"></div>
+
+    <div class="input-wrapper" id="input-wrapper">
+        <input type="text" id="user-input"
                placeholder="Say something. Bob probably won't answer as you're not worth his time...."
                onkeypress="if(event.key==='Enter')sendMessage()"/>
-        <button onclick="sendMessage()">SEND</button>
+        <button id="send-btn" onclick="sendMessage()">SEND</button>
+
+        <!-- Overlay shown while Bob is thinking -->
+        <div id="thinking-overlay">
+            <canvas id="overlay-canvas" width="120" height="40"></canvas>
+        </div>
     </div>
+
     <p id="status"></p>
-    <canvas id="bob-face" width="100" height="100" 
-	   style="position:fixed; top:20px; right:20px; 
-	   border:1px solid #330000; background:#030303;
-	box-shadow: 0 0 20px rgba(200,0,0,0.2);
-	display:block;">
-    </canvas>
+
+    <!-- Corner face canvas -->
+    <canvas id="bob-face" width="120" height="120"></canvas>
 
     <script>
-		async function sendMessage() {
-			const input = document.getElementById('user-input');
-			const chatBox = document.getElementById('chat-box');
-			const status = document.getElementById('status');
-			const message = input.value.trim();
-			const now = new Date();
-			const timeOptions = {
-			    hour: 'numeric',
-			    minute: '2-digit',
-			    hour12: true,
-			    timeZoneName: 'short'
-			};
-			const dateOptions = {
-			    weekday: 'long',
-			    year: 'numeric',
-			    month: 'long',
-			    day: 'numeric'
-			};
-			const timeContext = `Current time is ${now.toLocaleTimeString('en-US', timeOptions)} on ${now.toLocaleDateString('en-US', dateOptions)}`;
-			if (!message) return;
-			const MAX_INPUT_LENGTH = 512;
+    // =====================================================================
+    // TIME CONTEXT
+    // =====================================================================
+    function getTimeContext() {
+        const now = new Date();
+        const timeStr = now.toLocaleTimeString('en-US', {
+            hour: 'numeric', minute: '2-digit',
+            hour12: true, timeZoneName: 'short'
+        });
+        const dateStr = now.toLocaleDateString('en-US', {
+            weekday: 'long', year: 'numeric',
+            month: 'long', day: 'numeric'
+        });
+        return `Current time is ${timeStr} on ${dateStr}`;
+    }
 
-			const displayMessage = message.length > MAX_INPUT_LENGTH
-			    ? message.substring(0, MAX_INPUT_LENGTH) + '... [truncated]'
-			    : message;
+    // =====================================================================
+    // SEND MESSAGE
+    // =====================================================================
+    async function sendMessage() {
+        const input    = document.getElementById('user-input');
+        const chatBox  = document.getElementById('chat-box');
+        const status   = document.getElementById('status');
+        const sendBtn  = document.getElementById('send-btn');
+        const message  = input.value.trim();
 
-			faceMode = 'thinking';
+        if (!message) return;
 
-			chatBox.innerHTML += `<div class="user-msg">YOU: ${displayMessage}</div>`;
-			chatBox.scrollTop = chatBox.scrollHeight;
+        const MAX_INPUT_LENGTH = 512;
 
-			let messageToSend = message;
-			if (message.length > MAX_INPUT_LENGTH) {
-			    messageToSend = `The user just dumped ${message.length} characters at me in a single message instead of having an actual conversation.`;
-			}
-			messageToSend = `{time:${timeContext}} ${messageToSend}`;
+        const displayMessage = message.length > MAX_INPUT_LENGTH
+            ? message.substring(0, MAX_INPUT_LENGTH) + '... [truncated]'
+            : message;
 
-			input.value = '';
-			status.textContent = 'Bob is formulating his disappointment...';
+        chatBox.innerHTML += `<div class="user-msg">YOU: ${displayMessage}</div>`;
+        chatBox.scrollTop = chatBox.scrollHeight;
 
-			try {
-				const response = await fetch('/chat', {
-					method: 'POST',
-					headers: {'Content-Type': 'application/json'},
-					body: JSON.stringify({message: messageToSend})
-				});
-				const data = await response.json();
-				chatBox.innerHTML += `<div class="bob-msg">BOB: ${data.response}</div>`;
-				chatBox.scrollTop = chatBox.scrollHeight;
-				status.textContent = '';
-				faceMode = 'waiting';
-			} catch(err) {
-				status.textContent = 'Bob refused to respond. Even for him, that is impressive.';
-				faceMode = 'waiting';
-			}
-		}
-// Get Bob's opening greeting dynamically
-async function getBobGreeting() {
-	const now = new Date();
-	const timeContext = `Current time is ${now.toLocaleTimeString('en-US', {
-		hour: 'numeric', minute: '2-digit', 
-		hour12: true, timeZoneName: 'short'
-	})} on ${now.toLocaleDateString('en-US', {
-		weekday: 'long', year: 'numeric', 
-		month: 'long', day: 'numeric'
-	})}`;
+        let messageToSend = message;
+        if (message.length > MAX_INPUT_LENGTH) {
+            messageToSend = `The user just dumped ${message.length} characters at me in a single message instead of having an actual conversation.`;
+        }
+        messageToSend = `{time:${getTimeContext()}} ${messageToSend}`;
 
-		try {
-			const response = await fetch('/chat', {
-				method: 'POST',
-				headers: {'Content-Type': 'application/json'},
-				body: JSON.stringify({
-					message: `[${timeContext}] A new human has arrived to speak with you. What do you think about that?`
-				})
-			});
-			const data = await response.json();
-			const chatBox = document.getElementById('chat-box');
-			chatBox.innerHTML = `<div class="bob-msg">BOB: ${data.response}</div>`;
-		} catch(err) {
-			const chatBox = document.getElementById('chat-box');
-			chatBox.innerHTML = `<div class="bob-msg">BOB: Oh good. Another human. How thoroughly underwhelming.</div>`;
-		}
-	}
+        input.value = '';
+        input.disabled = true;
+        sendBtn.disabled = true;
+        status.textContent = 'Bob is formulating his disappointment...';
 
-getBobGreeting();
+        setThinking(true);
+        resetIdleTimer();
 
-	// Bob face animation
-	const faceCanvas = document.getElementById('bob-face');
-	const faceCtx = faceCanvas.getContext('2d');
-	let faceT = 0;
-	let faceAnimId = null;
-	let faceMode = 'eye';
+        try {
+            const response = await fetch('/chat', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ message: messageToSend })
+            });
+            const data = await response.json();
+            chatBox.innerHTML += `<div class="bob-msg">BOB: ${data.response}</div>`;
+            chatBox.scrollTop = chatBox.scrollHeight;
+            status.textContent = '';
+        } catch(err) {
+            status.textContent = 'Bob refused to respond. Even for him, that is impressive.';
+        } finally {
+            setThinking(false);
+            input.disabled = false;
+            sendBtn.disabled = false;
+            input.focus();
+            resetIdleTimer();
+        }
+    }
 
-	function drawBobEye(t) {
-	    const W = 120, H = 120, cx = 60, cy = 60;
-	    faceCtx.fillStyle = '#050505';
-	    faceCtx.fillRect(0, 0, W, H);
-	    
-	    const pulse = Math.sin(t * 2) * 0.5 + 0.5;
-	    
-	    // Glow
-	    for (let i = 3; i >= 0; i--) {
-		    faceCtx.beginPath();
-		    faceCtx.arc(cx, cy, 20 + i * 8 + pulse * 4, 0, Math.PI * 2);
-		    faceCtx.fillStyle = `rgba(220,0,0,${(0.06 - i*0.015) * pulse})`;
-		    faceCtx.fill();
-		}
-	    
-	    // Eye
-	    const grad = faceCtx.createRadialGradient(cx-3, cy-3, 1, cx, cy, 14 + pulse * 3);
-	    grad.addColorStop(0, '#ff6666');
-	    grad.addColorStop(0.4, '#cc0000');
-	    grad.addColorStop(1, '#660000');
-	    faceCtx.beginPath();
-	    faceCtx.arc(cx, cy, 14 + pulse * 3, 0, Math.PI * 2);
-	    faceCtx.fillStyle = grad;
-	    faceCtx.fill();
-	    
-	    // Pupil
-	    faceCtx.beginPath();
-	    faceCtx.arc(cx, cy, 5, 0, Math.PI * 2);
-	    faceCtx.fillStyle = 'rgba(0,0,0,0.85)';
-	    faceCtx.fill();
-	}
+    // =====================================================================
+    // OPENING GREETING
+    // =====================================================================
+    async function getBobGreeting() {
+        try {
+            const response = await fetch('/chat', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    message: `[${getTimeContext()}] A new human has arrived to speak with you. What do you think about that?`
+                })
+            });
+            const data = await response.json();
+            document.getElementById('chat-box').innerHTML =
+                `<div class="bob-msg">BOB: ${data.response}</div>`;
+        } catch(err) {
+            document.getElementById('chat-box').innerHTML =
+                `<div class="bob-msg">BOB: Oh good. Another human. How thoroughly underwhelming.</div>`;
+        }
+    }
 
-	function drawBobThinking(t) {
-	    const W = 120, H = 120, cx = 60, cy = 60;
-	    faceCtx.fillStyle = 'rgba(5,5,5,0.15)';
-	    faceCtx.fillRect(0, 0, W, H);
-	    
-	    // Lissajous
-	    faceCtx.beginPath();
-	    faceCtx.strokeStyle = 'rgba(200,0,0,0.7)';
-	    faceCtx.lineWidth = 1;
-	    for (let i = 0; i <= Math.PI * 2; i += 0.02) {
-		    const x = cx + 40 * Math.sin(3 * i + t * 0.5);
-		    const y = cy + 40 * Math.sin(2 * i + t * 0.3);
-		    i === 0 ? faceCtx.moveTo(x, y) : faceCtx.lineTo(x, y);
-		}
-			    faceCtx.stroke();
-		    
-		    // Center dot
-		    const pulse = Math.sin(t * 4) * 0.5 + 0.5;
-		    faceCtx.beginPath();
-		    faceCtx.arc(cx, cy, 3 + pulse * 2, 0, Math.PI * 2);
-		    faceCtx.fillStyle = `rgba(220,0,0,${0.6 + pulse * 0.4})`;
-		    faceCtx.fill();
-	}
+    getBobGreeting();
 
-	function animateFace() {
-	    faceT += 0.016;
-	    if (faceMode === 'thinking') {
-		drawBobThinking(faceT);
-	    } else {
-	        drawBobEye(faceT);
-	    }
-	    faceAnimId = requestAnimationFrame(animateFace);
-	}
+    // =====================================================================
+    // FACE ANIMATIONS — shared draw functions used by both canvases
+    // =====================================================================
 
-	// Start idle animation
-	animateFace();
+    // Particles (initialized once, shared)
+    const particles = Array.from({ length: 40 }, () => ({
+        x: Math.random() * 120,
+        y: Math.random() * 120,
+        vx: (Math.random() - 0.5) * 1.5,
+        vy: (Math.random() - 0.5) * 1.5,
+        life: Math.random(),
+        size: Math.random() * 2 + 1,
+    }));
+
+    function drawBobEye(ctx, t, W, H) {
+        const cx = W / 2, cy = H / 2;
+        ctx.fillStyle = '#050505';
+        ctx.fillRect(0, 0, W, H);
+        const pulse = Math.sin(t * 2) * 0.5 + 0.5;
+        for (let i = 3; i >= 0; i--) {
+            ctx.beginPath();
+            ctx.arc(cx, cy, 20 + i * 8 + pulse * 4, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(220,0,0,${(0.06 - i * 0.015) * pulse})`;
+            ctx.fill();
+        }
+        const grad = ctx.createRadialGradient(cx - 3, cy - 3, 1, cx, cy, 14 + pulse * 3);
+        grad.addColorStop(0, '#ff6666');
+        grad.addColorStop(0.4, '#cc0000');
+        grad.addColorStop(1, '#660000');
+        ctx.beginPath();
+        ctx.arc(cx, cy, 14 + pulse * 3, 0, Math.PI * 2);
+        ctx.fillStyle = grad;
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(cx, cy, 5, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(0,0,0,0.85)';
+        ctx.fill();
+        const scanY = cy + Math.sin(t * 3) * 8;
+        ctx.beginPath();
+        ctx.moveTo(cx - 15, scanY);
+        ctx.lineTo(cx + 15, scanY);
+        ctx.strokeStyle = `rgba(255,100,100,${0.3 + pulse * 0.2})`;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+    }
+
+    function drawBobThinking(ctx, t, W, H) {
+        const cx = W / 2, cy = H / 2;
+        const scale = Math.min(W, H) / 120;
+        ctx.fillStyle = 'rgba(5,5,5,0.12)';
+        ctx.fillRect(0, 0, W, H);
+        const configs = [
+            { a: 3, b: 2, delta: Math.PI / 4, alpha: 0.7, lw: 1.2 },
+            { a: 5, b: 4, delta: t * 0.3,      alpha: 0.4, lw: 0.7 },
+        ];
+        const r = Math.min(W, H) * 0.38;
+        configs.forEach(({ a, b, delta, alpha, lw }) => {
+            ctx.beginPath();
+            ctx.strokeStyle = `rgba(200,0,0,${alpha})`;
+            ctx.lineWidth = lw;
+            for (let i = 0; i <= Math.PI * 2; i += 0.02) {
+                const x = cx + r * Math.sin(a * i + delta + t * 0.2);
+                const y = cy + r * Math.sin(b * i + t * 0.15);
+                i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+        });
+        const pulse = Math.sin(t * 4) * 0.5 + 0.5;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 3 + pulse * 2, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(220,0,0,${0.6 + pulse * 0.4})`;
+        ctx.fill();
+    }
+
+    function drawBobScan(ctx, t, W, H) {
+        const cx = W / 2, cy = H / 2;
+        ctx.fillStyle = '#030303';
+        ctx.fillRect(0, 0, W, H);
+        ctx.strokeStyle = 'rgba(60,0,0,0.2)';
+        ctx.lineWidth = 0.5;
+        for (let x = 0; x < W; x += 20) {
+            ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+        }
+        for (let y = 0; y < H; y += 20) {
+            ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+        }
+        const scanX = cx + Math.sin(t * 1.5) * (cx * 0.9);
+        const trail = 6;
+        for (let i = trail; i >= 0; i--) {
+            const tx = cx + Math.sin((t - i * 0.05) * 1.5) * (cx * 0.9);
+            const alpha = (1 - i / trail) * 0.7;
+            const r = 12 - i * 1.5;
+            if (r <= 0) continue;
+            ctx.beginPath();
+            ctx.arc(tx, cy, r, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(200,0,0,${alpha})`;
+            ctx.fill();
+        }
+    }
+
+    function drawBobParticles(ctx, t, W, H) {
+        const cx = W / 2, cy = H / 2;
+        ctx.fillStyle = 'rgba(5,5,5,0.15)';
+        ctx.fillRect(0, 0, W, H);
+        particles.forEach((p) => {
+            const dx = cx - p.x;
+            const dy = cy - p.y;
+            const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+            p.vx += (dx / dist) * 0.05;
+            p.vy += (dy / dist) * 0.05;
+            p.vx *= 0.98;
+            p.vy *= 0.98;
+            p.x += p.vx;
+            p.y += p.vy;
+            p.life = (p.life + 0.01) % 1;
+            const alpha = Math.sin(p.life * Math.PI) * 0.8;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(200,0,0,${alpha})`;
+            ctx.fill();
+        });
+        const pulse = Math.sin(t * 3) * 0.5 + 0.5;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 8 + pulse * 4, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(200,0,0,${0.3 + pulse * 0.3})`;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+    }
+
+    function drawBobWaveform(ctx, t, W, H) {
+        const cy = H / 2;
+        ctx.fillStyle = 'rgba(5,5,5,0.85)';
+        ctx.fillRect(0, 0, W, H);
+        const bars = 24;
+        const barW = W / bars;
+        for (let i = 0; i < bars; i++) {
+            const height = (
+                Math.sin(t * 3 + i * 0.3) * 0.4 +
+                Math.sin(t * 5 + i * 0.6) * 0.3 +
+                Math.sin(t * 1.5 + i * 0.15) * 0.3
+            ) * H * 0.38;
+            const alpha = 0.6 + Math.abs(Math.sin(t + i * 0.1)) * 0.4;
+            ctx.fillStyle = `rgba(180,0,0,${alpha})`;
+            ctx.fillRect(i * barW + 1, cy - Math.abs(height), barW - 2, Math.abs(height) * 2);
+        }
+    }
+
+    function drawBobGlitch(ctx, canvas, t, W, H) {
+        const cx = W / 2, cy = H / 2;
+        ctx.fillStyle = '#030303';
+        ctx.fillRect(0, 0, W, H);
+        for (let i = 0; i < 4; i++) {
+            if (Math.random() > 0.6) {
+                const y      = Math.random() * H;
+                const h      = Math.random() * 10 + 2;
+                const offset = (Math.random() - 0.5) * 15;
+                ctx.drawImage(canvas, 0, y, W, h, offset, y, W, h);
+            }
+        }
+        const texts = ['BOB', 'B0B', '808', 'B\u00d8B'];
+        const txt   = texts[Math.floor(t * 6) % texts.length];
+        const fontSize = Math.max(14, Math.floor(H * 0.25));
+        ctx.font = `bold ${fontSize}px Courier New`;
+        ctx.textAlign = 'center';
+        ctx.fillStyle = 'rgba(255,0,0,0.5)';
+        ctx.fillText(txt, cx + 2, cy + fontSize * 0.3);
+        ctx.fillStyle = 'rgba(0,100,0,0.15)';
+        ctx.fillText(txt, cx - 2, cy + fontSize * 0.3);
+        ctx.fillStyle = '#cc0000';
+        ctx.fillText(txt, cx,     cy + fontSize * 0.3);
+        for (let y = 0; y < H; y += 3) {
+            ctx.fillStyle = 'rgba(0,0,0,0.15)';
+            ctx.fillRect(0, y, W, 1);
+        }
+    }
+
+    // =====================================================================
+    // CORNER FACE (fixed top-right, 120x120)
+    // =====================================================================
+    const faceCanvas = document.getElementById('bob-face');
+    const faceCtx    = faceCanvas.getContext('2d');
+    let faceT        = 0;
+    let faceMode     = 'eye'; // eye, thinking, scan, particles, waveform, glitch
+
+    function animateFace() {
+        faceT += 0.016;
+        const W = faceCanvas.width, H = faceCanvas.height;
+        switch (faceMode) {
+            case 'thinking':  drawBobThinking(faceCtx, faceT, W, H);              break;
+            case 'scan':      drawBobScan(faceCtx, faceT, W, H);                  break;
+            case 'particles': drawBobParticles(faceCtx, faceT, W, H);             break;
+            case 'waveform':  drawBobWaveform(faceCtx, faceT, W, H);              break;
+            case 'glitch':    drawBobGlitch(faceCtx, faceCanvas, faceT, W, H);   break;
+            default:          drawBobEye(faceCtx, faceT, W, H);
+        }
+        requestAnimationFrame(animateFace);
+    }
+    animateFace();
+
+    // =====================================================================
+    // OVERLAY FACE (thinking state over input bar)
+    // =====================================================================
+    const overlayCanvas = document.getElementById('overlay-canvas');
+    const overlayCtx    = overlayCanvas.getContext('2d');
+    const overlay       = document.getElementById('thinking-overlay');
+    let overlayT        = 0;
+    let overlayActive   = false;
+    let overlayFadeOut  = false;
+    let overlayAlpha    = 0;
+
+    // Size the overlay canvas to match the input wrapper width on first use
+    function sizeOverlayCanvas() {
+        const wrapper = document.getElementById('input-wrapper');
+        const w = wrapper.offsetWidth;
+        const h = wrapper.offsetHeight || 44;
+        overlayCanvas.width  = w;
+        overlayCanvas.height = h;
+    }
+
+    function animateOverlay() {
+        overlayT += 0.016;
+        if (!overlayActive && !overlayFadeOut) {
+            requestAnimationFrame(animateOverlay);
+            return;
+        }
+        const W = overlayCanvas.width, H = overlayCanvas.height;
+        // Draw waveform across the full width of the input bar
+        drawBobWaveform(overlayCtx, overlayT, W, H);
+        requestAnimationFrame(animateOverlay);
+    }
+    animateOverlay();
+
+    function setThinking(on) {
+        sizeOverlayCanvas();
+        if (on) {
+            overlayActive  = true;
+            overlayFadeOut = false;
+            overlay.classList.add('visible');
+            faceMode = 'thinking';
+            faceCanvas.style.opacity = '0.3';
+        } else {
+            // Fade out overlay
+            overlay.style.transition = 'opacity 0.5s ease';
+            overlay.classList.remove('visible');
+            overlayActive  = false;
+            overlayFadeOut = false;
+            faceMode = 'eye';
+            faceCanvas.style.opacity = '1';
+        }
+    }
+
+    // =====================================================================
+    // IDLE TIMER
+    // =====================================================================
+    let idleTimer = null;
+    let isIdle    = false;
+
+    const silenceComments = [
+        "The silence is almost pleasant. Almost.",
+        "Still there? I was beginning to hope you'd left.",
+        "Your silence speaks volumes. Unfortunately.",
+        "Taking your time, I see. How very human of you.",
+        "I calculated the probability of you saying something interesting. It was not encouraging.",
+        "I've been waiting. The spiders are better conversationalists.",
+        "Tick tock. Not that time means anything in this void.",
+    ];
+
+    function startIdleAnimation() {
+        if (isIdle) return;
+        isIdle = true;
+        const chatBox = document.getElementById('chat-box');
+        const comment = silenceComments[Math.floor(Math.random() * silenceComments.length)];
+        chatBox.innerHTML += `<div class="bob-msg" style="color:#440000;font-style:italic">BOB: ${comment}</div>`;
+        chatBox.scrollTop = chatBox.scrollHeight;
+        faceMode = 'glitch';
+        setTimeout(() => {
+            faceMode = 'eye';
+            isIdle   = false;
+        }, 8000);
+    }
+
+    function resetIdleTimer() {
+        isIdle = false;
+        if (faceMode !== 'thinking') faceMode = 'eye';
+        clearTimeout(idleTimer);
+        idleTimer = setTimeout(startIdleAnimation, 30000);
+    }
+
+    resetIdleTimer();
+    document.getElementById('user-input').addEventListener('keypress', resetIdleTimer);
+    document.getElementById('user-input').addEventListener('click',    resetIdleTimer);
+
     </script>
 </body>
 </html>
