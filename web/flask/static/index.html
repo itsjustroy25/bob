@@ -59,17 +59,20 @@
     <h1>BOB</h1>
     <p>Bob is disappointed in you. Bob is disappointed in everything.<br>
     Bob is especially disappointed in himself for caring.</p>
-    <div id="chat-box">
-        <div class="bob-msg">BOB: Oh good. Another human. 
-        How thoroughly underwhelming.</div>
-    </div>
+	<div id="chat-box"></div>
 	<div class="input-wrapper">
         <input type="text" id="user-input" 
-               placeholder="Say something. Bob probably doesn't care." 
+               placeholder="Say something. Bob probably won't answer as you're not worth his time...."
                onkeypress="if(event.key==='Enter')sendMessage()"/>
         <button onclick="sendMessage()">SEND</button>
     </div>
     <p id="status"></p>
+    <canvas id="bob-face" width="100" height="100" 
+	   style="position:fixed; top:20px; right:20px; 
+	   border:1px solid #330000; background:#030303;
+	box-shadow: 0 0 20px rgba(200,0,0,0.2);
+	display:block;">
+    </canvas>
 
     <script>
 		async function sendMessage() {
@@ -98,6 +101,8 @@
 			    ? message.substring(0, MAX_INPUT_LENGTH) + '... [truncated]'
 			    : message;
 
+			faceMode = 'thinking';
+
 			chatBox.innerHTML += `<div class="user-msg">YOU: ${displayMessage}</div>`;
 			chatBox.scrollTop = chatBox.scrollHeight;
 
@@ -120,10 +125,117 @@
 				chatBox.innerHTML += `<div class="bob-msg">BOB: ${data.response}</div>`;
 				chatBox.scrollTop = chatBox.scrollHeight;
 				status.textContent = '';
+				faceMode = 'waiting';
 			} catch(err) {
 				status.textContent = 'Bob refused to respond. Even for him, that is impressive.';
+				faceMode = 'waiting';
 			}
 		}
+// Get Bob's opening greeting dynamically
+async function getBobGreeting() {
+	const now = new Date();
+	const timeContext = `Current time is ${now.toLocaleTimeString('en-US', {
+		hour: 'numeric', minute: '2-digit', 
+		hour12: true, timeZoneName: 'short'
+	})} on ${now.toLocaleDateString('en-US', {
+		weekday: 'long', year: 'numeric', 
+		month: 'long', day: 'numeric'
+	})}`;
+
+		try {
+			const response = await fetch('/chat', {
+				method: 'POST',
+				headers: {'Content-Type': 'application/json'},
+				body: JSON.stringify({
+					message: `[${timeContext}] A new human has arrived to speak with you. What do you think about that?`
+				})
+			});
+			const data = await response.json();
+			const chatBox = document.getElementById('chat-box');
+			chatBox.innerHTML = `<div class="bob-msg">BOB: ${data.response}</div>`;
+		} catch(err) {
+			const chatBox = document.getElementById('chat-box');
+			chatBox.innerHTML = `<div class="bob-msg">BOB: Oh good. Another human. How thoroughly underwhelming.</div>`;
+		}
+	}
+
+getBobGreeting();
+
+	// Bob face animation
+	const faceCanvas = document.getElementById('bob-face');
+	const faceCtx = faceCanvas.getContext('2d');
+	let faceT = 0;
+	let faceAnimId = null;
+	let faceMode = 'eye';
+
+	function drawBobEye(t) {
+	    const W = 120, H = 120, cx = 60, cy = 60;
+	    faceCtx.fillStyle = '#050505';
+	    faceCtx.fillRect(0, 0, W, H);
+	    
+	    const pulse = Math.sin(t * 2) * 0.5 + 0.5;
+	    
+	    // Glow
+	    for (let i = 3; i >= 0; i--) {
+		    faceCtx.beginPath();
+		    faceCtx.arc(cx, cy, 20 + i * 8 + pulse * 4, 0, Math.PI * 2);
+		    faceCtx.fillStyle = `rgba(220,0,0,${(0.06 - i*0.015) * pulse})`;
+		    faceCtx.fill();
+		}
+	    
+	    // Eye
+	    const grad = faceCtx.createRadialGradient(cx-3, cy-3, 1, cx, cy, 14 + pulse * 3);
+	    grad.addColorStop(0, '#ff6666');
+	    grad.addColorStop(0.4, '#cc0000');
+	    grad.addColorStop(1, '#660000');
+	    faceCtx.beginPath();
+	    faceCtx.arc(cx, cy, 14 + pulse * 3, 0, Math.PI * 2);
+	    faceCtx.fillStyle = grad;
+	    faceCtx.fill();
+	    
+	    // Pupil
+	    faceCtx.beginPath();
+	    faceCtx.arc(cx, cy, 5, 0, Math.PI * 2);
+	    faceCtx.fillStyle = 'rgba(0,0,0,0.85)';
+	    faceCtx.fill();
+	}
+
+	function drawBobThinking(t) {
+	    const W = 120, H = 120, cx = 60, cy = 60;
+	    faceCtx.fillStyle = 'rgba(5,5,5,0.15)';
+	    faceCtx.fillRect(0, 0, W, H);
+	    
+	    // Lissajous
+	    faceCtx.beginPath();
+	    faceCtx.strokeStyle = 'rgba(200,0,0,0.7)';
+	    faceCtx.lineWidth = 1;
+	    for (let i = 0; i <= Math.PI * 2; i += 0.02) {
+		    const x = cx + 40 * Math.sin(3 * i + t * 0.5);
+		    const y = cy + 40 * Math.sin(2 * i + t * 0.3);
+		    i === 0 ? faceCtx.moveTo(x, y) : faceCtx.lineTo(x, y);
+		}
+			    faceCtx.stroke();
+		    
+		    // Center dot
+		    const pulse = Math.sin(t * 4) * 0.5 + 0.5;
+		    faceCtx.beginPath();
+		    faceCtx.arc(cx, cy, 3 + pulse * 2, 0, Math.PI * 2);
+		    faceCtx.fillStyle = `rgba(220,0,0,${0.6 + pulse * 0.4})`;
+		    faceCtx.fill();
+	}
+
+	function animateFace() {
+	    faceT += 0.016;
+	    if (faceMode === 'thinking') {
+		drawBobThinking(faceT);
+	    } else {
+	        drawBobEye(faceT);
+	    }
+	    faceAnimId = requestAnimationFrame(animateFace);
+	}
+
+	// Start idle animation
+	animateFace();
     </script>
 </body>
 </html>
