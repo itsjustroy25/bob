@@ -14,27 +14,77 @@
             padding: 20px;
             text-align: center;
         }
-        h1 { color: #cc0000; }
+
+        /* BOB title — glitch via CSS animation */
+        #bob-title {
+            color: #cc0000;
+            font-size: 2em;
+            margin: 0.67em 0;
+            position: relative;
+            display: inline-block;
+            letter-spacing: 0.1em;
+        }
+        #bob-title.glitching {
+            animation: titleGlitch 0.08s steps(1) infinite;
+        }
+        @keyframes titleGlitch {
+            0%   { text-shadow:  2px 0   rgba(255,0,0,0.8), -2px 0  rgba(0,80,0,0.4); transform: none; }
+            20%  { text-shadow: -3px 0   rgba(255,0,0,0.9),  3px 0  rgba(0,80,0,0.3); transform: skewX(-3deg); }
+            40%  { text-shadow:  3px 1px rgba(200,0,0,0.7), -1px 0  rgba(0,60,0,0.5); transform: skewX(2deg) translateX(2px); }
+            60%  { text-shadow: -2px 0   rgba(255,0,0,0.8),  2px 0  rgba(0,80,0,0.3); transform: skewX(0deg); }
+            80%  { text-shadow:  1px -1px rgba(255,50,50,0.9),-3px 0 rgba(0,80,0,0.2); transform: skewX(-1deg) translateX(-1px); }
+            100% { text-shadow: none; transform: none; }
+        }
+
+        /* Chat box wrapper — position:relative so overlay anchors here */
+        #chat-wrapper {
+            position: relative;
+            margin: 20px 0;
+        }
         #chat-box {
-            border: 1px solid #cc0000;
+            border: 1px solid #880000;
             height: 400px;
             overflow-y: auto;
             padding: 10px;
-            margin: 20px 0;
             background: #050505;
             width: 100%;
             box-sizing: border-box;
             text-align: left;
+            animation: glowPulse 15s ease-in-out infinite;
         }
-        .user-msg { color: #888; margin: 10px 0; }
-        .bob-msg { color: #cc0000; margin: 10px 0; }
+        @keyframes glowPulse {
+            0%   { box-shadow: 0 0 12px rgba(200,0,0,0.15), 0 0 30px rgba(200,0,0,0.06), inset 0 0  8px rgba(150,0,0,0.04); }
+            50%  { box-shadow: 0 0 35px rgba(220,0,0,0.45), 0 0 70px rgba(200,0,0,0.20), inset 0 0 20px rgba(150,0,0,0.12); }
+            100% { box-shadow: 0 0 12px rgba(200,0,0,0.15), 0 0 30px rgba(200,0,0,0.06), inset 0 0  8px rgba(150,0,0,0.04); }
+        }
+        .user-msg { color: #888;    margin: 10px 0; }
+        .bob-msg  { color: #cc0000; margin: 10px 0; }
 
-        /* Input area — position:relative so overlay can anchor to it */
+        /* Overlay — covers the chat box */
+        #chat-overlay {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(5,5,5,0.88);
+            border: 1px solid #330000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.35s ease;
+            box-sizing: border-box;
+        }
+        #chat-overlay.visible {
+            opacity: 1;
+            pointer-events: all;
+        }
+        #overlay-canvas { display: block; }
+
         .input-wrapper {
             text-align: left;
             width: 100%;
             box-sizing: border-box;
-            position: relative;
         }
         input[type="text"] {
             width: 85%;
@@ -55,147 +105,106 @@
             font-family: monospace;
             font-weight: bold;
         }
-        button:hover { background: #ff0000; }
-        button:disabled {
-            background: #440000;
-            color: #220000;
-            cursor: not-allowed;
-        }
-        input[type="text"]:disabled {
-            color: #330000;
-            border-color: #330000;
-        }
+        button:hover    { background: #ff0000; }
+        button:disabled { background: #440000; color: #220000; cursor: not-allowed; }
+        input[type="text"]:disabled { color: #330000; border-color: #330000; }
         #status { color: #444; font-size: 0.8em; }
-
-        /* Thinking overlay — sits on top of the input-wrapper */
-        #thinking-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(5, 5, 5, 0.92);
-            border: 1px solid #330000;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.3s ease;
-            box-sizing: border-box;
-            min-height: 44px;
-        }
-        #thinking-overlay.visible {
-            opacity: 1;
-            pointer-events: all;
-        }
-        #overlay-canvas {
-            display: block;
-        }
-
-        /* Corner face — fixed top-right */
-        #bob-face {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            border: 1px solid #330000;
-            background: #030303;
-            box-shadow: 0 0 20px rgba(200, 0, 0, 0.2);
-            display: block;
-            transition: opacity 0.4s ease;
-        }
     </style>
 </head>
 <body>
-    <h1>BOB</h1>
+    <h1 id="bob-title">BOB</h1>
     <p>Bob is disappointed in you. Bob is disappointed in everything.<br>
     Bob is especially disappointed in himself for caring.</p>
 
-    <div id="chat-box"></div>
+    <div id="chat-wrapper">
+        <div id="chat-box"></div>
+        <div id="chat-overlay">
+            <canvas id="overlay-canvas"></canvas>
+        </div>
+    </div>
 
-    <div class="input-wrapper" id="input-wrapper">
+    <div class="input-wrapper">
         <input type="text" id="user-input"
                placeholder="Say something. Bob probably won't answer as you're not worth his time...."
                onkeypress="if(event.key==='Enter')sendMessage()"/>
         <button id="send-btn" onclick="sendMessage()">SEND</button>
-
-        <!-- Overlay shown while Bob is thinking -->
-        <div id="thinking-overlay">
-            <canvas id="overlay-canvas" width="120" height="40"></canvas>
-        </div>
     </div>
-
     <p id="status"></p>
 
-    <!-- Corner face canvas -->
-    <canvas id="bob-face" width="120" height="120"></canvas>
+    <!-- Full-screen CRT glitch overlay -->
+    <canvas id="crt-overlay" style="
+        position: fixed;
+        top: 0; left: 0;
+        width: 100vw; height: 100vh;
+        pointer-events: none;
+        z-index: 9999;
+        opacity: 0;
+        transition: opacity 0.05s;
+    "></canvas>
 
     <script>
-    // =====================================================================
+    // =========================================================
     // TIME CONTEXT
-    // =====================================================================
+    // =========================================================
     function getTimeContext() {
         const now = new Date();
-        const timeStr = now.toLocaleTimeString('en-US', {
-            hour: 'numeric', minute: '2-digit',
-            hour12: true, timeZoneName: 'short'
-        });
-        const dateStr = now.toLocaleDateString('en-US', {
-            weekday: 'long', year: 'numeric',
-            month: 'long', day: 'numeric'
-        });
-        return `Current time is ${timeStr} on ${dateStr}`;
+        return `Current time is ${now.toLocaleTimeString('en-US', {
+            hour: 'numeric', minute: '2-digit', hour12: true, timeZoneName: 'short'
+        })} on ${now.toLocaleDateString('en-US', {
+            weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+        })}`;
     }
 
-    // =====================================================================
-    // SEND MESSAGE
-    // =====================================================================
-    async function sendMessage() {
-        const input    = document.getElementById('user-input');
-        const chatBox  = document.getElementById('chat-box');
-        const status   = document.getElementById('status');
-        const sendBtn  = document.getElementById('send-btn');
-        const message  = input.value.trim();
+    const thinkingModes = ['thinking', 'waveform', 'scan', 'particles', 'eye'];
+    function randomThinkingMode() {
+        return thinkingModes[Math.floor(Math.random() * thinkingModes.length)];
+    }
 
+    // =========================================================
+    // SEND MESSAGE
+    // =========================================================
+    async function sendMessage() {
+        const input   = document.getElementById('user-input');
+        const chatBox = document.getElementById('chat-box');
+        const status  = document.getElementById('status');
+        const sendBtn = document.getElementById('send-btn');
+        const message = input.value.trim();
         if (!message) return;
 
-        const MAX_INPUT_LENGTH = 512;
-
-        const displayMessage = message.length > MAX_INPUT_LENGTH
-            ? message.substring(0, MAX_INPUT_LENGTH) + '... [truncated]'
-            : message;
-
-        chatBox.innerHTML += `<div class="user-msg">YOU: ${displayMessage}</div>`;
+        const MAX = 512;
+        const display = message.length > MAX ? message.substring(0, MAX) + '... [truncated]' : message;
+        chatBox.innerHTML += `<div class="user-msg">YOU: ${display}</div>`;
         chatBox.scrollTop = chatBox.scrollHeight;
 
-        let messageToSend = message;
-        if (message.length > MAX_INPUT_LENGTH) {
-            messageToSend = `The user just dumped ${message.length} characters at me in a single message instead of having an actual conversation.`;
-        }
-        messageToSend = `{time:${getTimeContext()}} ${messageToSend}`;
+        let toSend = message.length > MAX
+            ? `The user just dumped ${message.length} characters at me in a single message instead of having an actual conversation.`
+            : message;
+        toSend = `{time:${getTimeContext()}} ${toSend}`;
 
         input.value = '';
         input.disabled = true;
         sendBtn.disabled = true;
         status.textContent = 'Bob is formulating his disappointment...';
 
-        setThinking(true);
+        setOverlay(true, randomThinkingMode());
         resetIdleTimer();
 
         try {
-            const response = await fetch('/chat', {
+            const res  = await fetch('/chat', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ message: messageToSend })
+                body: JSON.stringify({ message: toSend })
             });
-            const data = await response.json();
+            const data = await res.json();
             chatBox.innerHTML += `<div class="bob-msg">BOB: ${data.response}</div>`;
             chatBox.scrollTop = chatBox.scrollHeight;
             status.textContent = '';
         } catch(err) {
             status.textContent = 'Bob refused to respond. Even for him, that is impressive.';
         } finally {
-            setThinking(false);
+            // Linger 1 extra second before dismissing — the thinking IS the show
+            await new Promise(r => setTimeout(r, 2000));
+            setOverlay(false);
             input.disabled = false;
             sendBtn.disabled = false;
             input.focus();
@@ -203,43 +212,34 @@
         }
     }
 
-    // =====================================================================
+    // =========================================================
     // OPENING GREETING
-    // =====================================================================
+    // =========================================================
     async function getBobGreeting() {
+        setOverlay(true, randomThinkingMode());
         try {
-            const response = await fetch('/chat', {
+            const res  = await fetch('/chat', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
                     message: `[${getTimeContext()}] A new human has arrived to speak with you. What do you think about that?`
                 })
             });
-            const data = await response.json();
+            const data = await res.json();
             document.getElementById('chat-box').innerHTML =
                 `<div class="bob-msg">BOB: ${data.response}</div>`;
         } catch(err) {
             document.getElementById('chat-box').innerHTML =
                 `<div class="bob-msg">BOB: Oh good. Another human. How thoroughly underwhelming.</div>`;
+        } finally {
+            setOverlay(false);
         }
     }
-
     getBobGreeting();
 
-    // =====================================================================
-    // FACE ANIMATIONS — shared draw functions used by both canvases
-    // =====================================================================
-
-    // Particles (initialized once, shared)
-    const particles = Array.from({ length: 40 }, () => ({
-        x: Math.random() * 120,
-        y: Math.random() * 120,
-        vx: (Math.random() - 0.5) * 1.5,
-        vy: (Math.random() - 0.5) * 1.5,
-        life: Math.random(),
-        size: Math.random() * 2 + 1,
-    }));
-
+    // =========================================================
+    // DRAW FUNCTIONS  (ctx, t, W, H)
+    // =========================================================
     function drawBobEye(ctx, t, W, H) {
         const cx = W / 2, cy = H / 2;
         ctx.fillStyle = '#050505';
@@ -251,38 +251,43 @@
             ctx.fillStyle = `rgba(220,0,0,${(0.06 - i * 0.015) * pulse})`;
             ctx.fill();
         }
-        const grad = ctx.createRadialGradient(cx - 3, cy - 3, 1, cx, cy, 14 + pulse * 3);
+        const eyeR = 28 + pulse * 6;
+        const grad = ctx.createRadialGradient(cx - 6, cy - 6, 2, cx, cy, eyeR);
         grad.addColorStop(0, '#ff6666');
         grad.addColorStop(0.4, '#cc0000');
         grad.addColorStop(1, '#660000');
         ctx.beginPath();
-        ctx.arc(cx, cy, 14 + pulse * 3, 0, Math.PI * 2);
+        ctx.arc(cx, cy, eyeR, 0, Math.PI * 2);
         ctx.fillStyle = grad;
         ctx.fill();
         ctx.beginPath();
-        ctx.arc(cx, cy, 5, 0, Math.PI * 2);
+        ctx.arc(cx, cy, eyeR * 0.4, 0, Math.PI * 2);
         ctx.fillStyle = 'rgba(0,0,0,0.85)';
         ctx.fill();
-        const scanY = cy + Math.sin(t * 3) * 8;
+        const scanY = cy + Math.sin(t * 3) * (eyeR * 0.6);
         ctx.beginPath();
-        ctx.moveTo(cx - 15, scanY);
-        ctx.lineTo(cx + 15, scanY);
+        ctx.moveTo(cx - eyeR, scanY);
+        ctx.lineTo(cx + eyeR, scanY);
         ctx.strokeStyle = `rgba(255,100,100,${0.3 + pulse * 0.2})`;
         ctx.lineWidth = 1;
         ctx.stroke();
     }
 
+    const particles = Array.from({ length: 40 }, () => ({
+        x: Math.random() * 120, y: Math.random() * 120,
+        vx: (Math.random() - 0.5) * 1.5, vy: (Math.random() - 0.5) * 1.5,
+        life: Math.random(), size: Math.random() * 2 + 1,
+    }));
+
     function drawBobThinking(ctx, t, W, H) {
         const cx = W / 2, cy = H / 2;
-        const scale = Math.min(W, H) / 120;
+        const r  = Math.min(W, H) * 0.38;
         ctx.fillStyle = 'rgba(5,5,5,0.12)';
         ctx.fillRect(0, 0, W, H);
-        const configs = [
+        [
             { a: 3, b: 2, delta: Math.PI / 4, alpha: 0.7, lw: 1.2 },
-            { a: 5, b: 4, delta: t * 0.3,      alpha: 0.4, lw: 0.7 },
-        ];
-        const r = Math.min(W, H) * 0.38;
-        configs.forEach(({ a, b, delta, alpha, lw }) => {
+            { a: 5, b: 4, delta: t * 0.3,     alpha: 0.4, lw: 0.7 },
+        ].forEach(({ a, b, delta, alpha, lw }) => {
             ctx.beginPath();
             ctx.strokeStyle = `rgba(200,0,0,${alpha})`;
             ctx.lineWidth = lw;
@@ -300,28 +305,39 @@
         ctx.fill();
     }
 
+    function drawBobWaveform(ctx, t, W, H) {
+        const cy   = H / 2;
+        const bars = Math.max(12, Math.floor(W / 14));
+        const barW = W / bars;
+        ctx.fillStyle = 'rgba(5,5,5,0.85)';
+        ctx.fillRect(0, 0, W, H);
+        for (let i = 0; i < bars; i++) {
+            const h = (
+                Math.sin(t * 3   + i * 0.3)  * 0.4 +
+                Math.sin(t * 5   + i * 0.6)  * 0.3 +
+                Math.sin(t * 1.5 + i * 0.15) * 0.3
+            ) * H * 0.38;
+            ctx.fillStyle = `rgba(180,0,0,${0.6 + Math.abs(Math.sin(t + i * 0.1)) * 0.4})`;
+            ctx.fillRect(i * barW + 1, cy - Math.abs(h), barW - 2, Math.abs(h) * 2);
+        }
+    }
+
     function drawBobScan(ctx, t, W, H) {
         const cx = W / 2, cy = H / 2;
         ctx.fillStyle = '#030303';
         ctx.fillRect(0, 0, W, H);
         ctx.strokeStyle = 'rgba(60,0,0,0.2)';
         ctx.lineWidth = 0.5;
-        for (let x = 0; x < W; x += 20) {
-            ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
-        }
-        for (let y = 0; y < H; y += 20) {
-            ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
-        }
-        const scanX = cx + Math.sin(t * 1.5) * (cx * 0.9);
+        for (let x = 0; x < W; x += 20) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+        for (let y = 0; y < H; y += 20) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
         const trail = 6;
         for (let i = trail; i >= 0; i--) {
             const tx = cx + Math.sin((t - i * 0.05) * 1.5) * (cx * 0.9);
-            const alpha = (1 - i / trail) * 0.7;
-            const r = 12 - i * 1.5;
+            const r  = 12 - i * 1.5;
             if (r <= 0) continue;
             ctx.beginPath();
             ctx.arc(tx, cy, r, 0, Math.PI * 2);
-            ctx.fillStyle = `rgba(200,0,0,${alpha})`;
+            ctx.fillStyle = `rgba(200,0,0,${(1 - i / trail) * 0.7})`;
             ctx.fill();
         }
     }
@@ -330,21 +346,16 @@
         const cx = W / 2, cy = H / 2;
         ctx.fillStyle = 'rgba(5,5,5,0.15)';
         ctx.fillRect(0, 0, W, H);
-        particles.forEach((p) => {
-            const dx = cx - p.x;
-            const dy = cy - p.y;
-            const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-            p.vx += (dx / dist) * 0.05;
-            p.vy += (dy / dist) * 0.05;
-            p.vx *= 0.98;
-            p.vy *= 0.98;
-            p.x += p.vx;
-            p.y += p.vy;
+        particles.forEach(p => {
+            const dx = cx - p.x, dy = cy - p.y;
+            const dist = Math.sqrt(dx*dx + dy*dy) || 1;
+            p.vx += (dx/dist)*0.05; p.vy += (dy/dist)*0.05;
+            p.vx *= 0.98; p.vy *= 0.98;
+            p.x += p.vx; p.y += p.vy;
             p.life = (p.life + 0.01) % 1;
-            const alpha = Math.sin(p.life * Math.PI) * 0.8;
             ctx.beginPath();
             ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-            ctx.fillStyle = `rgba(200,0,0,${alpha})`;
+            ctx.fillStyle = `rgba(200,0,0,${Math.sin(p.life * Math.PI) * 0.8})`;
             ctx.fill();
         });
         const pulse = Math.sin(t * 3) * 0.5 + 0.5;
@@ -355,168 +366,250 @@
         ctx.stroke();
     }
 
-    function drawBobWaveform(ctx, t, W, H) {
-        const cy = H / 2;
-        ctx.fillStyle = 'rgba(5,5,5,0.85)';
-        ctx.fillRect(0, 0, W, H);
-        const bars = 24;
-        const barW = W / bars;
-        for (let i = 0; i < bars; i++) {
-            const height = (
-                Math.sin(t * 3 + i * 0.3) * 0.4 +
-                Math.sin(t * 5 + i * 0.6) * 0.3 +
-                Math.sin(t * 1.5 + i * 0.15) * 0.3
-            ) * H * 0.38;
-            const alpha = 0.6 + Math.abs(Math.sin(t + i * 0.1)) * 0.4;
-            ctx.fillStyle = `rgba(180,0,0,${alpha})`;
-            ctx.fillRect(i * barW + 1, cy - Math.abs(height), barW - 2, Math.abs(height) * 2);
-        }
-    }
-
     function drawBobGlitch(ctx, canvas, t, W, H) {
         const cx = W / 2, cy = H / 2;
         ctx.fillStyle = '#030303';
         ctx.fillRect(0, 0, W, H);
-        for (let i = 0; i < 4; i++) {
-            if (Math.random() > 0.6) {
-                const y      = Math.random() * H;
-                const h      = Math.random() * 10 + 2;
-                const offset = (Math.random() - 0.5) * 15;
-                ctx.drawImage(canvas, 0, y, W, h, offset, y, W, h);
+
+        // More slices, bigger offsets
+        for (let i = 0; i < 12; i++) {
+            if (Math.random() > 0.55) {
+                const sy = Math.random() * H;
+                const sh = Math.random() * 20 + 2;
+                ctx.drawImage(canvas, 0, sy, W, sh, (Math.random()-0.5)*30, sy, W, sh);
             }
         }
-        const texts = ['BOB', 'B0B', '808', 'B\u00d8B'];
-        const txt   = texts[Math.floor(t * 6) % texts.length];
-        const fontSize = Math.max(14, Math.floor(H * 0.25));
-        ctx.font = `bold ${fontSize}px Courier New`;
+
+        // Big RGB-split BOB text
+        const texts = ['BOB','B0B','808','B\u00d8B','BO8'];
+        const txt   = texts[Math.floor(t * 8) % texts.length];
+        const fs    = Math.max(40, Math.floor(H * 0.20));
+        ctx.font = `bold ${fs}px Courier New`;
         ctx.textAlign = 'center';
-        ctx.fillStyle = 'rgba(255,0,0,0.5)';
-        ctx.fillText(txt, cx + 2, cy + fontSize * 0.3);
-        ctx.fillStyle = 'rgba(0,100,0,0.15)';
-        ctx.fillText(txt, cx - 2, cy + fontSize * 0.3);
-        ctx.fillStyle = '#cc0000';
-        ctx.fillText(txt, cx,     cy + fontSize * 0.3);
+        ctx.fillStyle = 'rgba(255,0,0,0.5)';   ctx.fillText(txt, cx+3,  cy+fs*0.35);
+        ctx.fillStyle = 'rgba(0,255,0,0.08)';  ctx.fillText(txt, cx-3,  cy+fs*0.35);
+        ctx.fillStyle = 'rgba(0,0,255,0.08)';  ctx.fillText(txt, cx,    cy+fs*0.38);
+        ctx.fillStyle = '#cc0000';              ctx.fillText(txt, cx,    cy+fs*0.35);
+
+        // Binary noise text scattered around
+        ctx.font = "7px Courier New";
+        ctx.fillStyle = "rgba(100,0,0,0.4)";
+        const chars = "01101001010011000101BOB10110";
+        for (let i = 0; i < 6; i++) {
+            ctx.fillText(
+                chars.substring(Math.floor(Math.random()*10), Math.floor(Math.random()*10)+20),
+                Math.random() * W,
+                Math.random() * H
+            );
+        }
+
+        // Scanlines
         for (let y = 0; y < H; y += 3) {
-            ctx.fillStyle = 'rgba(0,0,0,0.15)';
+            ctx.fillStyle = 'rgba(0,0,0,0.18)';
             ctx.fillRect(0, y, W, 1);
         }
     }
 
-    // =====================================================================
-    // CORNER FACE (fixed top-right, 120x120)
-    // =====================================================================
-    const faceCanvas = document.getElementById('bob-face');
-    const faceCtx    = faceCanvas.getContext('2d');
-    let faceT        = 0;
-    let faceMode     = 'eye'; // eye, thinking, scan, particles, waveform, glitch
-
-    function animateFace() {
-        faceT += 0.016;
-        const W = faceCanvas.width, H = faceCanvas.height;
-        switch (faceMode) {
-            case 'thinking':  drawBobThinking(faceCtx, faceT, W, H);              break;
-            case 'scan':      drawBobScan(faceCtx, faceT, W, H);                  break;
-            case 'particles': drawBobParticles(faceCtx, faceT, W, H);             break;
-            case 'waveform':  drawBobWaveform(faceCtx, faceT, W, H);              break;
-            case 'glitch':    drawBobGlitch(faceCtx, faceCanvas, faceT, W, H);   break;
-            default:          drawBobEye(faceCtx, faceT, W, H);
-        }
-        requestAnimationFrame(animateFace);
-    }
-    animateFace();
-
-    // =====================================================================
-    // OVERLAY FACE (thinking state over input bar)
-    // =====================================================================
+    // =========================================================
+    // OVERLAY ENGINE
+    // =========================================================
+    const overlay       = document.getElementById('chat-overlay');
     const overlayCanvas = document.getElementById('overlay-canvas');
     const overlayCtx    = overlayCanvas.getContext('2d');
-    const overlay       = document.getElementById('thinking-overlay');
-    let overlayT        = 0;
-    let overlayActive   = false;
-    let overlayFadeOut  = false;
-    let overlayAlpha    = 0;
+    let   overlayT      = 0;
+    let   overlayMode   = null;
 
-    // Size the overlay canvas to match the input wrapper width on first use
-    function sizeOverlayCanvas() {
-        const wrapper = document.getElementById('input-wrapper');
-        const w = wrapper.offsetWidth;
-        const h = wrapper.offsetHeight || 44;
-        overlayCanvas.width  = w;
-        overlayCanvas.height = h;
+    function sizeOverlay() {
+        const box = document.getElementById('chat-box');
+        overlayCanvas.width  = box.offsetWidth  || 760;
+        overlayCanvas.height = box.offsetHeight || 400;
     }
 
-    function animateOverlay() {
-        overlayT += 0.016;
-        if (!overlayActive && !overlayFadeOut) {
-            requestAnimationFrame(animateOverlay);
-            return;
-        }
-        const W = overlayCanvas.width, H = overlayCanvas.height;
-        // Draw waveform across the full width of the input bar
-        drawBobWaveform(overlayCtx, overlayT, W, H);
-        requestAnimationFrame(animateOverlay);
-    }
-    animateOverlay();
-
-    function setThinking(on) {
-        sizeOverlayCanvas();
+    function setOverlay(on, mode) {
         if (on) {
-            overlayActive  = true;
-            overlayFadeOut = false;
+            sizeOverlay();
+            overlayMode = mode || 'thinking';
             overlay.classList.add('visible');
-            faceMode = 'thinking';
-            faceCanvas.style.opacity = '0.3';
         } else {
-            // Fade out overlay
-            overlay.style.transition = 'opacity 0.5s ease';
             overlay.classList.remove('visible');
-            overlayActive  = false;
-            overlayFadeOut = false;
-            faceMode = 'eye';
-            faceCanvas.style.opacity = '1';
+            setTimeout(() => { overlayMode = null; }, 400);
         }
     }
 
-    // =====================================================================
-    // IDLE TIMER
-    // =====================================================================
+    (function tickOverlay() {
+        overlayT += 0.016;
+        if (overlayMode) {
+            const W = overlayCanvas.width, H = overlayCanvas.height;
+            switch (overlayMode) {
+                case 'eye':       drawBobEye(overlayCtx, overlayT, W, H);                    break;
+                case 'thinking':  drawBobThinking(overlayCtx, overlayT, W, H);               break;
+                case 'waveform':  drawBobWaveform(overlayCtx, overlayT, W, H);               break;
+                case 'scan':      drawBobScan(overlayCtx, overlayT, W, H);                   break;
+                case 'particles': drawBobParticles(overlayCtx, overlayT, W, H);              break;
+                case 'glitch':    drawBobGlitch(overlayCtx, overlayCanvas, overlayT, W, H);  break;
+            }
+        }
+        requestAnimationFrame(tickOverlay);
+    })();
+
+    // =========================================================
+    // TITLE GLITCH
+    // =========================================================
+    const bobTitle = document.getElementById('bob-title');
+
+    const titleGlyphs = ['B0B', '808', 'B\u00d8B', 'BO8', 'B\u0332O\u0332B\u0332', 'BOB'];
+    function glitchTitle(durationMs) {
+        const dur = durationMs || 500;
+        bobTitle.classList.add('glitching');
+
+        // Rapidly swap glyphs for the duration, then restore
+        let swapInterval = setInterval(() => {
+            bobTitle.textContent = titleGlyphs[Math.floor(Math.random() * (titleGlyphs.length - 1))];
+        }, 80);
+
+        setTimeout(() => {
+            clearInterval(swapInterval);
+            bobTitle.textContent = 'BOB';
+            bobTitle.classList.remove('glitching');
+        }, dur);
+    }
+
+    function scheduleNextTitleGlitch() {
+        setTimeout(() => {
+            glitchTitle(300 + Math.random() * 600);
+            scheduleNextTitleGlitch();
+        }, 8000 + Math.random() * 22000); // every 8–30s
+    }
+    scheduleNextTitleGlitch();
+
+    // =========================================================
+    // IDLE FLICKER  (brief overlay, no text)
+    // =========================================================
     let idleTimer = null;
     let isIdle    = false;
+    const idleModes = ['waveform', 'scan', 'particles', 'glitch'];
 
-    const silenceComments = [
-        "The silence is almost pleasant. Almost.",
-        "Still there? I was beginning to hope you'd left.",
-        "Your silence speaks volumes. Unfortunately.",
-        "Taking your time, I see. How very human of you.",
-        "I calculated the probability of you saying something interesting. It was not encouraging.",
-        "I've been waiting. The spiders are better conversationalists.",
-        "Tick tock. Not that time means anything in this void.",
-    ];
-
-    function startIdleAnimation() {
+    function startIdleFlicker() {
         if (isIdle) return;
         isIdle = true;
-        const chatBox = document.getElementById('chat-box');
-        const comment = silenceComments[Math.floor(Math.random() * silenceComments.length)];
-        chatBox.innerHTML += `<div class="bob-msg" style="color:#440000;font-style:italic">BOB: ${comment}</div>`;
-        chatBox.scrollTop = chatBox.scrollHeight;
-        faceMode = 'glitch';
+        const mode = idleModes[Math.floor(Math.random() * idleModes.length)];
+        const dur  = 1500 + Math.random() * 2500; // 1.5–4s
+        setOverlay(true, mode);
+        glitchTitle(150 + Math.random() * 250);
         setTimeout(() => {
-            faceMode = 'eye';
-            isIdle   = false;
-        }, 8000);
+            setOverlay(false);
+            isIdle = false;
+        }, dur);
     }
 
     function resetIdleTimer() {
         isIdle = false;
-        if (faceMode !== 'thinking') faceMode = 'eye';
         clearTimeout(idleTimer);
-        idleTimer = setTimeout(startIdleAnimation, 30000);
+        idleTimer = setTimeout(startIdleFlicker, 30000 + Math.random() * 20000); // 30–50s
     }
 
     resetIdleTimer();
     document.getElementById('user-input').addEventListener('keypress', resetIdleTimer);
     document.getElementById('user-input').addEventListener('click',    resetIdleTimer);
+
+    // =========================================================
+    // FULL-SCREEN CRT GLITCH
+    // =========================================================
+    const crtCanvas = document.getElementById('crt-overlay');
+    const crtCtx    = crtCanvas.getContext('2d');
+
+    function fireCRT() {
+        // Size to actual viewport pixels
+        crtCanvas.width  = window.innerWidth;
+        crtCanvas.height = window.innerHeight;
+        crtCanvas.style.opacity = '1';
+
+        const W = crtCanvas.width, H = crtCanvas.height;
+        let frame = 0;
+        const totalFrames = 18 + Math.floor(Math.random() * 20); // ~0.5–1.2s at 60fps
+
+        // Capture the page into an offscreen canvas via html background trick —
+        // we can't capture DOM, so we build the effect from scratch over the page
+        function crtFrame() {
+            crtCtx.clearRect(0, 0, W, H);
+
+            const progress = frame / totalFrames;
+
+            // Phase 1 (0–0.4): building — slices tear sideways
+            // Phase 2 (0.4–0.7): roll — content shifts down
+            // Phase 3 (0.7–1.0): snap back with flicker
+
+            // Horizontal slice tears
+            const sliceCount = 8 + Math.floor(Math.random() * 10);
+            for (let i = 0; i < sliceCount; i++) {
+                if (Math.random() > 0.45) {
+                    const y      = Math.random() * H;
+                    const sh     = 2 + Math.random() * (progress < 0.4 ? 20 : 40);
+                    const offset = (Math.random() - 0.5) * (progress < 0.4 ? 30 : 80);
+                    // Draw a tinted rectangle simulating displaced content
+                    crtCtx.fillStyle = `rgba(180,0,0,${0.04 + Math.random()*0.06})`;
+                    crtCtx.fillRect(Math.max(0, offset), y, W, sh);
+                    // Bright leading edge
+                    crtCtx.fillStyle = `rgba(255,60,60,${0.1 + Math.random()*0.15})`;
+                    crtCtx.fillRect(0, y, W, 1);
+                }
+            }
+
+            // RGB desync bands
+            if (Math.random() > 0.4) {
+                const bandY = Math.random() * H;
+                const bandH = 10 + Math.random() * 30;
+                crtCtx.fillStyle = `rgba(255,0,0,0.04)`;
+                crtCtx.fillRect(3, bandY, W, bandH);
+                crtCtx.fillStyle = `rgba(0,0,255,0.03)`;
+                crtCtx.fillRect(-3, bandY, W, bandH);
+            }
+
+            // Screen roll phase — dark band sweeps down
+            if (progress > 0.35 && progress < 0.72) {
+                const rollY = ((progress - 0.35) / 0.37) * H * 1.3 - H * 0.15;
+                const grad  = crtCtx.createLinearGradient(0, rollY - 30, 0, rollY + 60);
+                grad.addColorStop(0,   'rgba(0,0,0,0)');
+                grad.addColorStop(0.3, 'rgba(0,0,0,0.6)');
+                grad.addColorStop(0.6, 'rgba(0,0,0,0.85)');
+                grad.addColorStop(1,   'rgba(0,0,0,0)');
+                crtCtx.fillStyle = grad;
+                crtCtx.fillRect(0, rollY - 30, W, 90);
+            }
+
+            // Scanlines always present during glitch
+            for (let y = 0; y < H; y += 3) {
+                crtCtx.fillStyle = 'rgba(0,0,0,0.12)';
+                crtCtx.fillRect(0, y, W, 1);
+            }
+
+            // Snap-back flash at end
+            if (progress > 0.85 && Math.random() > 0.5) {
+                crtCtx.fillStyle = `rgba(180,0,0,${(1-progress) * 0.15})`;
+                crtCtx.fillRect(0, 0, W, H);
+            }
+
+            frame++;
+            if (frame < totalFrames) {
+                requestAnimationFrame(crtFrame);
+            } else {
+                // Fade out
+                crtCanvas.style.transition = 'opacity 0.15s';
+                crtCanvas.style.opacity    = '0';
+            }
+        }
+        requestAnimationFrame(crtFrame);
+    }
+
+    // Schedule random CRT events — independent of idle timer
+    function scheduleNextCRT() {
+        setTimeout(() => {
+            fireCRT();
+            glitchTitle(400 + Math.random() * 400);
+            scheduleNextCRT();
+        }, 25000 + Math.random() * 45000); // every 25–70s
+    }
+    scheduleNextCRT();
 
     </script>
 </body>
