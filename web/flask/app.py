@@ -113,7 +113,7 @@ def chat():
 
     if not user_message:
         user_message = "The user said nothing at all."
-    elif len(user_message) > 280:
+    elif len(user_message) > 512:
         user_message = "The user just dumped an enormous wall of text at me instead of having an actual conversation."
 
     response = chain.invoke(
