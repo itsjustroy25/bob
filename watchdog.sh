@@ -2,7 +2,7 @@
 
 LOG="/home/rleach/bob/watchdog.log"
 STARTALL="/home/rleach/bob/startall.sh"
-MAX_DOCKER_WAIT=90
+MAX_DOCKER_WAIT=300
 
 log() {
 	echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> $LOG
@@ -56,5 +56,5 @@ while true; do
 																    fi
 	fi
 
-	sleep 300
+	sleep 90
 done
